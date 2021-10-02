@@ -1,10 +1,13 @@
 #import: importee.nomnoml
-[Pirate|
-  [a]--[b]
-  [a]-:>[c]
+[<class id="myShip" class="myShipClass" href="https://www.google.com">Ship|
+  [<class id="myPirate" class="myPirateClass" href="https://www.newtek.com">Pirate|
+    [a]--[b]
+    [a]-:>[c]
+  ]
 ]
-[<abstract>Marauder]<:--[Pirate]
-[Pirate] - 0..7[<hello>Arrrrrr]
+
+[<abstract id="myAbstract" class="myClass">Marauder]<:--[Pirate]
+[Pirate] - 0..7[<hello href="https://www.amazon.com">Arrrrrr]
 [<database>db]->[Pirate]
 [db]->[rum]
 [Pirate]-> *[rum]

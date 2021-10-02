@@ -4,7 +4,7 @@ var TestSuite = require('./TestSuite.js')
 var Classifier = nomnoml.Classifier;
 var Compartment = nomnoml.Compartment
 
-function c(id){ return { type:'CLASS', parts:[[id]], id:id } }
+function c(id, type, metadata){ return { type: type || 'CLASS', metadata: metadata || {}, parts:[[id]], id:id } }
 
 function Association(start, assoc, end) {
     return {
@@ -26,11 +26,52 @@ suite.test('jison parser should handle single class', function(){
     assertEqual(ast, [c('apa')])
 })
 
+suite.test('jison parser should handle specified node type', function(){
+  var ast = nomnoml.intermediateParse('[<note>apa]')
+  assertEqual(ast, [c('apa', 'NOTE')])
+})
+
+suite.test('jison parser should handle node type with an id', function(){
+  var ast = nomnoml.intermediateParse('[<note id="myNote">apa]')
+  assertEqual(ast, [c('apa', 'NOTE', { id: 'myNote' })])
+})
+
+suite.test('jison parser should handle node type with a css class', function(){
+  var ast = nomnoml.intermediateParse('[<note class="myClass">apa]')
+  assertEqual(ast, [c('apa', 'NOTE', { className: 'myClass' })])
+})
+
+suite.test('jison parser should handle node type with an href', function(){
+  var ast = nomnoml.intermediateParse('[<note href="http://google.com">apa]')
+  assertEqual(ast, [c('apa', 'NOTE', { href: 'http://google.com' })])
+})
+
+suite.test('jison parser should handle node type with multiple metadata attributes', function(){
+  var ast = nomnoml.intermediateParse('[<note id="myNote" class="myClass" href="http://google.com">apa]')
+  assertEqual(ast, [c('apa', 'NOTE', { id: 'myNote', className: 'myClass', href: 'http://google.com' })])
+})
+
+suite.test('jison parser should handle node type with single quoted metadata attributes', function(){
+  var ast = nomnoml.intermediateParse("[<note id='myNote' class='myClass' href='http://google.com'>apa]")
+  assertEqual(ast, [c('apa', 'NOTE', { id: 'myNote', className: 'myClass', href: 'http://google.com' })])
+})
+
+suite.test('jison parser should handle node type metadata attributes when extra spaces', function(){
+  var ast = nomnoml.intermediateParse('[<note  id="myNote"    class="myClass"  href="http://google.com"  >apa]')
+  assertEqual(ast, [c('apa', 'NOTE', { id: 'myNote', className: 'myClass', href: 'http://google.com' })])
+})
+
+suite.test('jison parser should absorb angle brackets to the right of the class name', function(){
+  var ast = nomnoml.intermediateParse('[apa<T>]')
+  assertEqual(ast, [c('apa<T>')])
+})
+
 suite.test('jison parser should handle single class with compartments', function(){
     var ast = nomnoml.intermediateParse('[apa|+field: int;#x:int|apply]')
     assertEqual(ast.length, 1)
     assertEqual(ast[0], {
         type: 'CLASS',
+        metadata: {},
         id: 'apa',
         parts:[['apa'],['+field: int','#x:int'],['apply']]
     })
@@ -47,7 +88,7 @@ suite.test('jison parser should handle single relation', function(){
 
 suite.test('astBuilder should handle single class', function(){
     var ast = nomnoml.transformParseIntoSyntaxTree([c('apa')])
-    assertEqual(ast, new Compartment([],[new Classifier('CLASS', 'apa', [ new Compartment(['apa'],[],[]) ])],[]))
+    assertEqual(ast, new Compartment([],[new Classifier('CLASS', 'apa', {}, [ new Compartment(['apa'],[],[]) ])],[]))
 })
 
 suite.test('astBuilder should handle [apa|+field: int;#x:int|apply]', function(){
@@ -55,7 +96,7 @@ suite.test('astBuilder should handle [apa|+field: int;#x:int|apply]', function()
     apa.parts.push(['+field: int', '#x:int'])
     apa.parts.push(['apply'])
     var ast = nomnoml.transformParseIntoSyntaxTree([apa])
-    assertEqual(ast, new Compartment([],[new Classifier('CLASS', 'apa', [
+    assertEqual(ast, new Compartment([],[new Classifier('CLASS', 'apa', {}, [
         new Compartment(['apa'],[],[]),
         new Compartment(['+field: int', '#x:int'],[],[]),
         new Compartment(['apply'],[],[])
@@ -68,7 +109,7 @@ suite.test('astBuilder should choose longest definition of classes defined twice
     second.parts.push(['+fleas'])
     var ast = nomnoml.transformParseIntoSyntaxTree([first, second])
     assertEqual(ast, new Compartment([],[
-        new Classifier('CLASS', 'apa', [ new Compartment(['apa'],[],[]), new Compartment(['+fleas'],[],[]) ])
+        new Classifier('CLASS', 'apa', {}, [ new Compartment(['apa'],[],[]), new Compartment(['+fleas'],[],[]) ])
     ],[]))
 })
 
@@ -85,13 +126,13 @@ suite.test('astBuilder should handle single association', function(){
     assertEqual(ast.nodes.length, 2)
     assertEqual(ast.relations.length, 1)
     assertEqual(ast.nodes, [
-        new Classifier('CLASS', 'apa', [new Compartment(['apa'],[],[])]),
-        new Classifier('CLASS', 'banan', [new Compartment(['banan'],[],[])])
+        new Classifier('CLASS', 'apa', {}, [new Compartment(['apa'],[],[])]),
+        new Classifier('CLASS', 'banan', {}, [new Compartment(['banan'],[],[])])
     ])
 
     assertEqual(ast, new Compartment([],[
-        new Classifier('CLASS', 'apa', [new Compartment(['apa'],[],[])]),
-        new Classifier('CLASS', 'banan', [new Compartment(['banan'],[],[])])
+        new Classifier('CLASS', 'apa', {}, [new Compartment(['apa'],[],[])]),
+        new Classifier('CLASS', 'banan', {}, [new Compartment(['banan'],[],[])])
     ],[Association('apa', '->', 'banan')]))
 })
 
@@ -101,9 +142,9 @@ suite.test('astBuilder should handle nested classes [apa|[flea]]', function(){
     var ast = nomnoml.transformParseIntoSyntaxTree([apa])
     assertEqual(ast, 
         new Compartment([], [
-            new Classifier('CLASS', 'apa', [
+            new Classifier('CLASS', 'apa', {}, [
                 new Compartment(['apa'],[],[]),
-                new Compartment([],[new Classifier('CLASS', 'flea', [new Compartment(['flea'],[],[])])],[])
+                new Compartment([],[new Classifier('CLASS', 'flea', {}, [new Compartment(['flea'],[],[])])],[])
             ]
         )], [])
     )

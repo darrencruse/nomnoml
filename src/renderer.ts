@@ -1,9 +1,10 @@
 import { Classifier, Compartment, Config, Relation, RelationLabel, TextStyle } from "./domain"
-import { Graphics } from "./Graphics"
+import { buildStyle, styles, visualizers } from "./visuals"
 import { drawTerminators, getPath } from "./terminators"
 import { hasSubstring, last } from "./util"
+
+import { Graphics } from "./Graphics"
 import { Vec } from "./vector"
-import { buildStyle, styles, visualizers } from "./visuals"
 
 interface SetFont {
   (config: Config, isBold: string, isItalic: string|null): void
@@ -42,6 +43,13 @@ export function render(graphics: Graphics, config: Config, compartment: Compartm
 	}
 
 	function renderNode(node: Classifier, level: number){
+    const { id, className, href, target } = node.metadata
+
+    // start a group for this node if specified
+    const group = id || className ? g.g(id, className, []) : undefined
+    // add an anchor for this node if specified
+    const anchor = href ? g.a(href, target, []) : undefined
+
 		var x = Math.round(node.x-node.width/2)
 		var y = Math.round(node.y-node.height/2)
 		var style = config.styles[node.type] || styles.CLASS
@@ -52,6 +60,7 @@ export function render(graphics: Graphics, config: Config, compartment: Compartm
 			var dash = Math.max(4, 2*config.lineWidth)
 			g.setLineDash([dash, dash])
 		}
+
 		g.setData('name', node.name)
 		var drawNode = visualizers[style.visual] || visualizers.class
 		drawNode(node, x, y, config, g)
@@ -75,6 +84,9 @@ export function render(graphics: Graphics, config: Config, compartment: Compartm
 		})
 		
 		g.restore()
+
+    g.contentEnd(anchor)
+    g.contentEnd(group)
 	}
 
 	function strokePath(p: Vec[]){

@@ -19,7 +19,7 @@ interface AstRelation {
 	startLabel: string,
 	endLabel: string
 }
-interface AstClassifier { type: string, id: string, parts: AstCompartment[] }
+interface AstClassifier { type: string, id: string, metadata: object, parts: AstCompartment[] }
 
 class Line {
 		index: number
@@ -56,10 +56,12 @@ export function parse(source: string): ParsedDiagram {
 	}
 	
 	var parseTree = intermediateParse(pureDiagramCode)
-	return {
-		root: transformParseIntoSyntaxTree(parseTree),
-		config: getConfig(directives)
-	}
+  const syntaxTree = transformParseIntoSyntaxTree(parseTree)
+
+  return {
+      root: syntaxTree,
+      config: getConfig(directives)
+  }
 
 	function directionToDagre(word: any): 'TB'|'LR' {
 		if (word == 'down') return 'TB'
@@ -191,7 +193,7 @@ export function transformParseIntoSyntaxTree(entity: AstRoot): Compartment {
 
 	function transformClassifier(entity: AstClassifier): Classifier {
 			var compartments = entity.parts.map(transformCompartment)
-			return new Classifier(entity.type, entity.id, compartments)
+			return new Classifier(entity.type, entity.id, entity.metadata, compartments)
 	}
 
 	return transformCompartment(entity)

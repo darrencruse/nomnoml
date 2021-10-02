@@ -523,7 +523,7 @@
                 ranker: config.ranker
             });
             for (var e of c.nodes) {
-                g.setNode(e.name, { width: e.layoutWidth, height: e.layoutHeight });
+                g.setNode(e.name, Object.assign(Object.assign({}, e.metadata), { width: e.layoutWidth, height: e.layoutHeight }));
             }
             for (var r of c.relations) {
                 if (r.assoc.indexOf('_') > -1) {
@@ -639,9 +639,10 @@
     class Relation {
     }
     class Classifier {
-        constructor(type, name, compartments) {
+        constructor(type, name, metadata, compartments) {
             this.type = type;
             this.name = name;
+            this.metadata = metadata;
             this.compartments = compartments;
             this.dividers = [];
         }
@@ -767,13 +768,20 @@
 
                var type = 'CLASS';
                var id = $$[$0-1][0][0];
-               var typeMatch = $$[$0-1][0][0].match('<([a-z]*)>(.*)');
+               var metadata = {};
+               var typeMatch = $$[$0-1][0][0].match('^\s*<([a-z]*)([^>]*)>(.*)');
                if (typeMatch) {
                    type = typeMatch[1].toUpperCase();
-                   id = typeMatch[2].trim();
+                   if (typeMatch[2]) {
+                     metadata = typeMatch[2].trim().split(' ').reduce((accum, nameAndValue) => {
+                       var attrMatch = nameAndValue.trim().match('(id|class|href|target)\s*=\s*[\'"]([^\'"]*)[\'"]');
+                       return attrMatch ? { ...accum, [attrMatch[1] !== 'class' ? attrMatch[1] : 'className']: attrMatch[2] } : accum 
+                     }, {});
+                   }
+                   id = typeMatch[3].trim();
                }
                $$[$0-1][0][0] = id;
-               this.$ = {type:type, id:id, parts:$$[$0-1]};
+               this.$ = {type:type, metadata:metadata, id:id, parts:$$[$0-1]};
       
     break;
     }
@@ -1291,8 +1299,9 @@
             };
         }
         var parseTree = intermediateParse(pureDiagramCode);
+        const syntaxTree = transformParseIntoSyntaxTree(parseTree);
         return {
-            root: transformParseIntoSyntaxTree(parseTree),
+            root: syntaxTree,
             config: getConfig(directives)
         };
         function directionToDagre(word) {
@@ -1422,7 +1431,7 @@
         }
         function transformClassifier(entity) {
             var compartments = entity.parts.map(transformCompartment);
-            return new Classifier(entity.type, entity.id, compartments);
+            return new Classifier(entity.type, entity.id, entity.metadata, compartments);
         }
         return transformCompartment(entity);
     }
@@ -1571,6 +1580,9 @@
             g.restore();
         }
         function renderNode(node, level) {
+            const { id, className, href, target } = node.metadata;
+            const group = id || className ? g.g(id, className, []) : undefined;
+            const anchor = href ? g.a(href, target, []) : undefined;
             var x = Math.round(node.x - node.width / 2);
             var y = Math.round(node.y - node.height / 2);
             var style = config.styles[node.type] || styles.CLASS;
@@ -1600,6 +1612,8 @@
                 g.restore();
             });
             g.restore();
+            g.contentEnd(anchor);
+            g.contentEnd(group);
         }
         function strokePath(p) {
             if (config.edges === 'rounded') {
@@ -1795,7 +1809,16 @@
             scale: function () { return ctx.scale.apply(ctx, arguments); },
             setLineDash: function () { return ctx.setLineDash.apply(ctx, arguments); },
             stroke: function () { return ctx.stroke.apply(ctx, arguments); },
-            translate: function () { return ctx.translate.apply(ctx, arguments); }
+            translate: function () { return ctx.translate.apply(ctx, arguments); },
+            g: function (id, className, content) {
+                return chainable;
+            },
+            a: function (href, target, content) {
+                return chainable;
+            },
+            contentEnd: function (parentElement) {
+                return true;
+            }
         };
     }
 
@@ -1822,7 +1845,6 @@
             attributes: {}
         };
         var states = [initialState];
-        var elements = [];
         var measurementCanvas = document ? document.createElement('canvas') : null;
         var ctx = measurementCanvas ? measurementCanvas.getContext('2d') : null;
         class Element {
@@ -1855,6 +1877,9 @@
                 return this;
             }
         }
+        var elementTree = new Element('root', {}, []);
+        var elementStack = [elementTree];
+        var lastElement = new Element('dummy', {}, []);
         function State(dx, dy) {
             return {
                 x: dx,
@@ -1894,7 +1919,14 @@
             for (var key in extraData) {
                 element.attr['data-' + key] = extraData[key];
             }
-            elements.push(element);
+            const children = last(elementStack).content;
+            if (Array.isArray(children)) {
+                children.push(element);
+            }
+            lastElement = element;
+            if (Array.isArray(content)) {
+                elementStack.push(element);
+            }
             return element;
         }
         return {
@@ -1940,7 +1972,7 @@
                 last(states).fill = fill;
             },
             arcTo: function (x1, y1, x2, y2) {
-                last(elements).attr.d += ('L' + tX(x1) + ' ' + tY(y1) + ' L' + tX(x2) + ' ' + tY(y2) + ' ');
+                lastElement.attr.d += ('L' + tX(x1) + ' ' + tY(y1) + ' L' + tX(x2) + ' ' + tY(y2) + ' ');
             },
             beginPath: function () {
                 return newElement('path', { d: '' });
@@ -1959,8 +1991,8 @@
             lineCap: function (cap) { globalStyle += ';stroke-linecap:' + cap; },
             lineJoin: function (join) { globalStyle += ';stroke-linejoin:' + join; },
             lineTo: function (x, y) {
-                last(elements).attr.d += ('L' + tX(x) + ' ' + tY(y) + ' ');
-                return last(elements);
+                lastElement.attr.d += ('L' + tX(x) + ' ' + tY(y) + ' ');
+                return lastElement;
             },
             lineWidth: function (w) {
                 last(states).strokeWidth = w;
@@ -1983,7 +2015,7 @@
                 }
             },
             moveTo: function (x, y) {
-                last(elements).attr.d += ('M' + tX(x) + ' ' + tY(y) + ' ');
+                lastElement.attr.d += ('M' + tX(x) + ' ' + tY(y) + ' ');
             },
             restore: function () {
                 states.pop();
@@ -1999,7 +2031,7 @@
                 last(states).dashArray = (d.length === 0) ? 'none' : d[0] + ' ' + d[1];
             },
             stroke: function () {
-                last(elements).stroke();
+                lastElement.stroke();
             },
             textAlign: function (a) {
                 last(states).textAlign = a;
@@ -2008,21 +2040,45 @@
                 last(states).x += dx;
                 last(states).y += dy;
             },
+            g: function (id, className, content) {
+                const optionalIdAttr = id ? { id } : {};
+                const optionalClassAttr = className ? { class: className } : {};
+                return newElement('g', Object.assign(Object.assign({}, optionalIdAttr), optionalClassAttr), content);
+            },
+            a: function (href, target, content) {
+                const hrefAttr = { 'xlink:href': href };
+                const optionalTargetAttr = target ? { target } : {};
+                return newElement('a', Object.assign(Object.assign({}, hrefAttr), optionalTargetAttr), content);
+            },
+            contentEnd: function (parentElement) {
+                if (elementStack.length < 2) {
+                    return false;
+                }
+                if (parentElement && parentElement !== last(elementStack)) {
+                    return false;
+                }
+                elementStack.pop();
+                return true;
+            },
             serialize: function (size, desc, title) {
                 function toAttr(obj) {
                     return Object.keys(obj).map(key => `${key}="${xmlEncode(obj[key])}"`).join(' ');
                 }
-                function toHtml(e) {
-                    return `<${e.name} ${toAttr(e.attr)}>${xmlEncode(e.content)}</${e.name}>`;
+                function toHtml(e, indent) {
+                    const spaces = Array(indent + 1).join(' ');
+                    return Array.isArray(e.content) ?
+                        `${spaces}<${e.name} ${toAttr(e.attr)}>\n${e.content.map(el => toHtml(el, indent + 2)).join('\n')}\n${spaces}</${e.name}>`
+                        :
+                            `${spaces}<${e.name} ${toAttr(e.attr)}>${xmlEncode(e.content && e.content.indexOf('\n') !== -1 ? `\n${e.content}\n${spaces}` : e.content)}</${e.name}>`;
                 }
-                var elementsToSerialize = elements;
+                var elementsToSerialize = Array.isArray(elementTree.content) ? elementTree.content : [];
                 if (desc) {
                     elementsToSerialize.unshift(new Element('desc', {}, desc));
                 }
                 if (title) {
                     elementsToSerialize.unshift(new Element('title', {}, title));
                 }
-                var innerSvg = elementsToSerialize.map(toHtml).join('\n  ');
+                var innerSvg = elementsToSerialize.map(el => toHtml(el, 2)).join('\n');
                 var attrs = {
                     version: '1.1',
                     baseProfile: 'full',

@@ -1,5 +1,5 @@
 import { Classifier, Compartment, Config, NodeLayouter, Style, TextStyle, Visual, Visualizer } from "./domain"
-import { sum, last, range } from "./util"
+import { last, range, sum } from "./util"
 
 export function buildStyle(conf: Partial<Style>, title: Partial<TextStyle>, body: Partial<TextStyle> = {}): Style {
   return {

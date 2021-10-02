@@ -48,11 +48,18 @@ class
   : '[' parts ']'          {
            var type = 'CLASS';
            var id = $2[0][0];
-           var typeMatch = $2[0][0].match('<([a-z]*)>(.*)');
+           var metadata = {}
+           var typeMatch = $2[0][0].match('^\s*<([a-z]*)([^>]*)>(.*)');
            if (typeMatch) {
                type = typeMatch[1].toUpperCase();
-               id = typeMatch[2].trim();
+               if (typeMatch[2]) {
+                 metadata = typeMatch[2].trim().split(' ').reduce((accum, nameAndValue) => {
+                   var attrMatch = nameAndValue.trim().match('(id|class|href|target)\s*=\s*[\'"]([^\'"]*)[\'"]');
+                   return attrMatch ? { ...accum, [attrMatch[1] !== 'class' ? attrMatch[1] : 'className']: attrMatch[2] } : accum 
+                 }, {})
+               }
+               id = typeMatch[3].trim();
            }
            $2[0][0] = id;
-           $$ = {type:type, id:id, parts:$2};
+           $$ = {type:type, metadata:metadata, id:id, parts:$2};
   };

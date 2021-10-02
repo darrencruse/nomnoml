@@ -139,6 +139,16 @@ export function GraphicsCanvas(canvas: HTMLCanvasElement, callbacks?: any): ICan
 		scale:       function (){ return ctx.scale.apply(      ctx, arguments) },
 		setLineDash: function (){ return ctx.setLineDash.apply(ctx, arguments) },
 		stroke:      function (){ return ctx.stroke.apply(     ctx, arguments) },
-		translate:   function (){ return ctx.translate.apply(  ctx, arguments) }
+		translate:   function (){ return ctx.translate.apply(  ctx, arguments) },
+    // g (groups) and a (anchors) are no-ops (at least for now) when using canvas
+    g: function (id, className, content) {
+			return chainable
+    },
+    a: function (href, target, content) {
+			return chainable
+    },
+    contentEnd: function (parentElement?) {
+      return true
+    }
 	}
 }

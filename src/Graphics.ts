@@ -40,5 +40,8 @@ export interface Graphics {
   stroke(): void
   textAlign(a: string): void
   translate(dx: number, dy: number): void
+  g(id: string|undefined, className: string|undefined, content?: Chainable[]): Chainable
+  a(href: string, target: string|undefined, content?: string|Chainable[]): Chainable
+  contentEnd(parentElement: Chainable | undefined): boolean
 }
 

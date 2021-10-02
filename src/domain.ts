@@ -1,5 +1,5 @@
-import { Ranker } from "graphre/decl/types"
 import { Graphics } from "./Graphics"
+import { Ranker } from "graphre/decl/types"
 
 export interface Config {
   padding: number
@@ -111,6 +111,13 @@ export class Relation {
   assoc: string
 }
 
+export interface ClassifierMetadata {
+  id?: string
+  className?: string
+  href?: string
+  target?: string
+}
+
 export class Classifier {
   x: number
   y: number
@@ -122,7 +129,8 @@ export class Classifier {
   constructor(
     public type: string,
     public name: string,
-    public compartments: Compartment[]
+    public metadata: ClassifierMetadata,
+    public compartments: Compartment[],
   ){
     this.dividers = []
   }

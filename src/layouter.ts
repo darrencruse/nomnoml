@@ -1,9 +1,10 @@
 import { Classifier, Compartment, Config, Measurer, RelationLabel, Style } from "./domain"
-import { indexBy } from "./util"
-import { Vec } from "./vector"
+import { EdgeLabel, GraphLabel, GraphNode } from "graphre/decl/types"
 import { layout as grapheLayout, graphlib } from "graphre"
 import { layouters, styles } from "./visuals"
-import { EdgeLabel, GraphLabel, GraphNode } from "graphre/decl/types"
+
+import { Vec } from "./vector"
+import { indexBy } from "./util"
 
 type Quadrant = 1|2|3|4
 
@@ -45,7 +46,7 @@ export function layout(measurer: Measurer, config: Config, ast: Compartment): Co
 			ranker: config.ranker
 		});
 		for(var e of c.nodes){
-			g.setNode(e.name, { width: e.layoutWidth, height: e.layoutHeight })
+			g.setNode(e.name, { ...e.metadata, width: e.layoutWidth, height: e.layoutHeight })
 		}
 		for(var r of c.relations){
 			if (r.assoc.indexOf('_') > -1){

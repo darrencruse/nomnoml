@@ -1,6 +1,7 @@
 import { Chainable, Graphics, Vector } from "./Graphics"
 import { range, sum } from "./util"
-import { add, mult } from "./vector"
+
+import { add } from "./vector"
 
 interface SvgState {
 	x: number
@@ -44,20 +45,19 @@ export function GraphicsSvg(globalStyle: string, document?: HTMLDocument): ISvgG
 		attributes: {}
 	}
 	var states = [initialState]
-	var elements: Element[] = []
 
 	var measurementCanvas: HTMLCanvasElement|null = document ? document.createElement('canvas') : null;
 	var ctx = measurementCanvas ? measurementCanvas.getContext('2d') : null
 
 	class Element {
-		constructor(name: string, attr: any, content?: string) {
+		constructor(name: string, attr: any, content?: string | Element[]) {
 			this.name = name
 			this.attr = attr
 			this.content = content || undefined
 		}
 		name: string
 		attr: any
-		content: string|undefined
+		content: string|Element[]|undefined
 		stroke(){
 			var base = this.attr.style || ''
 			this.attr.style = base +
@@ -82,6 +82,13 @@ export function GraphicsSvg(globalStyle: string, document?: HTMLDocument): ISvgG
 			return this
 		}
 	}
+
+    // the (potentially) nested tree of Elements
+	var elementTree: Element = new Element('root', {}, [])
+  // a stack whose top points at the Element currently being populated  
+	var elementStack: Element[] = [elementTree]
+  // the last element created
+  var lastElement = new Element('dummy', {}, [])
 
 	function State(dx: number, dy: number): SvgState {
 		return {
@@ -120,13 +127,21 @@ export function GraphicsSvg(globalStyle: string, document?: HTMLDocument): ISvgG
 		return newElement('path', { d: d })
 	}
 
-	function newElement(type: string, attr: any, content?: string) {
+	function newElement(type: string, attr: any, content?: string | Element[]) {
 		var element = new Element(type, attr, content)
 		var extraData = lastDefined('attributes')
 		for(var key in extraData) {
 			element.attr['data-'+key] = extraData[key]
 		}
-		elements.push(element)
+    const children = last(elementStack).content
+		if (Array.isArray(children)) {
+      children.push(element)
+    }
+    lastElement = element
+    if (Array.isArray(content)) {
+      // subsequent Elements will be children of this one
+      elementStack.push(element)
+    }
 		return element
 	}
 
@@ -178,7 +193,7 @@ export function GraphicsSvg(globalStyle: string, document?: HTMLDocument): ISvgG
 			last(states).fill = fill
 		},
 		arcTo: function (x1, y1, x2, y2){
-			last(elements).attr.d += ('L'+tX(x1)+' '+tY(y1)+' L'+tX(x2)+' '+tY(y2)+' ')
+			lastElement.attr.d += ('L'+tX(x1)+' '+tY(y1)+' L'+tX(x2)+' '+tY(y2)+' ')
 		},
 		beginPath: function (){
 			return newElement('path', {d:''})
@@ -197,8 +212,8 @@ export function GraphicsSvg(globalStyle: string, document?: HTMLDocument): ISvgG
 		lineCap: function (cap){ globalStyle += ';stroke-linecap:'+cap },
 		lineJoin: function (join){ globalStyle += ';stroke-linejoin:'+join },
 		lineTo: function (x, y){
-			last(elements).attr.d += ('L' + tX(x) + ' ' + tY(y) + ' ')
-				return last(elements)
+			lastElement.attr.d += ('L' + tX(x) + ' ' + tY(y) + ' ')
+				return lastElement
 		},
 		lineWidth: function (w){
 			last(states).strokeWidth = w
@@ -220,7 +235,7 @@ export function GraphicsSvg(globalStyle: string, document?: HTMLDocument): ISvgG
 			}
 		},
 		moveTo: function (x, y){
-			last(elements).attr.d += ('M' + tX(x) + ' ' + tY(y) + ' ')
+			lastElement.attr.d += ('M' + tX(x) + ' ' + tY(y) + ' ')
 		},
 		restore: function (){
 			states.pop()
@@ -236,7 +251,7 @@ export function GraphicsSvg(globalStyle: string, document?: HTMLDocument): ISvgG
 			last(states).dashArray = (d.length === 0) ? 'none' : d[0] + ' ' + d[1]
 		},
 		stroke: function (){
-			last(elements).stroke()
+			lastElement.stroke()
 		},
 		textAlign: function (a){
 			last(states).textAlign = a
@@ -245,15 +260,46 @@ export function GraphicsSvg(globalStyle: string, document?: HTMLDocument): ISvgG
 			last(states).x += dx
 			last(states).y += dy
 		},
+    g: function (id: string|undefined, className: string|undefined, content?: Element[]) {
+      const optionalIdAttr = id ? { id } : {}
+      const optionalClassAttr = className ? { class: className } : {}
+			return newElement('g', { ...optionalIdAttr, ...optionalClassAttr }, content)
+    },
+    a: function (href: string, target: string|undefined, content?: string|Element[]) {
+      const hrefAttr = { 'xlink:href': href }
+      const optionalTargetAttr = target ? { target } : {}
+			return newElement('a', { ...hrefAttr, ...optionalTargetAttr }, content)
+    },
+    // the content for the Element currently being populated is complete
+    // returns true on success, false if there's a mismatch between Element begins/ends
+    contentEnd: function (parentElement?: Chainable | undefined) {
+      if (elementStack.length < 2) {
+        // as a safeguard we never pop the root
+        return false
+      }
+
+      // they can optionally assert the Element that's complete
+      if (parentElement && parentElement !== last(elementStack)) {
+        return false
+      }
+
+      elementStack.pop()
+      return true
+    },
 		serialize: function (size: { width: number, height: number }, desc: string, title: string): string {
 			function toAttr(obj: any){
 				return Object.keys(obj).map(key => `${key}="${xmlEncode(obj[key])}"`).join(' ')
 			}
-			function toHtml(e: Element){
-				return `<${e.name} ${toAttr(e.attr)}>${xmlEncode(e.content)}</${e.name}>`
+			function toHtml(e: Element, indent: number): string {
+        const spaces = Array(indent+1).join(' ')
+
+				return Array.isArray(e.content) ?
+          `${spaces}<${e.name} ${toAttr(e.attr)}>\n${e.content.map(el => toHtml(el, indent+2)).join('\n')}\n${spaces}</${e.name}>`
+          :
+          `${spaces}<${e.name} ${toAttr(e.attr)}>${xmlEncode(e.content && e.content.indexOf('\n') !== -1 ? `\n${e.content}\n${spaces}` : e.content)}</${e.name}>`
 			}
 
-			var elementsToSerialize = elements
+			var elementsToSerialize = Array.isArray(elementTree.content) ?  elementTree.content : []
 
 			if(desc){
 				elementsToSerialize.unshift(new Element('desc', {}, desc))
@@ -262,7 +308,7 @@ export function GraphicsSvg(globalStyle: string, document?: HTMLDocument): ISvgG
 				elementsToSerialize.unshift(new Element('title', {}, title))
 			}
 
-			var innerSvg = elementsToSerialize.map(toHtml).join('\n  ')
+			var innerSvg = elementsToSerialize.map(el => toHtml(el, 2)).join('\n')
 
 			var attrs = {
 				version: '1.1',

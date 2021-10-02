@@ -5,7 +5,7 @@ var Classifier = nomnoml.Classifier;
 var Compartment = nomnoml.Compartment
 
 function compClas(type, name, parts){
-    return new Compartment([],[new Classifier(type, name, parts)],[])
+    return new Compartment([],[new Classifier(type, name, {}, parts)],[])
 }
 
 function Association(start, assoc, end) {
@@ -80,7 +80,7 @@ suite.test('layouter should handle [apa|[flea]]', function(){
     var root = compClas('class', 'apa', [
         new Compartment(['apa'],[],[]),
         new Compartment([],[
-            new Classifier('class', 'flea', [
+            new Classifier('class', 'flea', {}, [
                 new Compartment(['flea'],[],[])
             ])
         ],[])
@@ -94,8 +94,8 @@ suite.test('layout [apa|[flea];[dandruff]] horizontally stacked inner classes', 
     var root = compClas('class', 'apa', [
         new Compartment(['apa'],[],[]),
         new Compartment([],[
-            new Classifier('class', 'flea', [new Compartment(['flea'],[],[])]),
-            new Classifier('class', 'dandruff', [new Compartment(['dandruff'],[],[])])
+            new Classifier('class', 'flea', {}, [new Compartment(['flea'],[],[])]),
+            new Classifier('class', 'dandruff', {}, [new Compartment(['dandruff'],[],[])])
         ],[])
     ])
     var layouted = nomnoml.layout(measurer, config, root).nodes[0]
@@ -107,8 +107,8 @@ suite.test('layout [apa|[flea]->[dandruff]] vertically stacked inner classes', f
     var root = compClas('class', 'apa', [
         new Compartment(['apa'],[],[]),
         new Compartment([],[
-                new Classifier('class', 'flea', [new Compartment(['flea'],[],[])]),
-                new Classifier('class', 'dandruff', [new Compartment(['dandruff'],[],[])])
+                new Classifier('class', 'flea', {}, [new Compartment(['flea'],[],[])]),
+                new Classifier('class', 'dandruff', {}, [new Compartment(['dandruff'],[],[])])
             ],[Association('flea', '-', 'dandruff')]
         )
     ])
@@ -138,8 +138,8 @@ suite.test('layouter should handle [apa|[flea]->[dandruff]] relation placement',
     var root = compClas('class', 'apa', [
         new Compartment(['apa'],[],[]),
         new Compartment([],[
-                new Classifier('class', 'flea', [new Compartment(['flea'],[],[])]),
-                new Classifier('class', 'dandruff', [new Compartment(['dandruff'],[],[])])
+                new Classifier('class', 'flea', {}, [new Compartment(['flea'],[],[])]),
+                new Classifier('class', 'dandruff', {}, [new Compartment(['dandruff'],[],[])])
             ],[Association('flea', '-', 'dandruff')]
         )
     ])
